@@ -15,6 +15,13 @@ services:
       AUTH_MODE: abs
       FAMILY_VISIBLE: "true"
       SNAPSHOT_MINUTES: "10"
+      # --- Single sign-on, if your ABS uses OIDC (see README)
+      PUBLIC_URL: https://stats.example.com
+      OIDC_ISSUER: https://auth.example.com/application/o/audiobookshelf/
+      OIDC_CLIENT_ID: ""
+      OIDC_CLIENT_SECRET: ""
+      OIDC_BUTTON_TEXT: Sign in with SSO
+      LOCAL_LOGIN: "false"                # hide the password form if ABS is OIDC-only
     volumes:
       # the SAME host folder you mount as /config in the audiobookshelf container
       - /path/to/audiobookshelf/config:/abs-config:ro

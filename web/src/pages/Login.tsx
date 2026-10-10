@@ -5,10 +5,14 @@ import { Avatar } from '../components/ui.tsx'
 import { api } from '../lib/api.ts'
 
 export function Login() {
-  const mode = useQuery({ queryKey: ['auth-mode'], queryFn: () => api<{ mode: 'abs' | 'demo'; users: string[] }>('/api/auth/mode') })
+  const mode = useQuery({
+    queryKey: ['auth-mode'],
+    queryFn: () => api<{ mode: 'abs' | 'demo'; users: string[]; local: boolean; oidc: { label: string } | null }>('/api/auth/mode'),
+  })
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  // SSO failures come back as /login?error=...
+  const [error, setError] = useState<string | null>(() => new URLSearchParams(window.location.search).get('error'))
   const [busy, setBusy] = useState(false)
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -55,23 +59,42 @@ export function Login() {
             </div>
             {error && <p className="mt-3 text-[13px] text-bad">{error}</p>}
           </div>
-        ) : (
-          <form onSubmit={submit} className="card flex flex-col gap-4 p-6">
-            <label className="flex flex-col gap-1.5 text-[13px] font-medium text-ink-2">
-              Username
-              <input autoFocus autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} className="rounded-xl border hairline bg-page px-3.5 py-2.5 text-[15px] text-ink outline-none focus:border-accent" />
-            </label>
-            <label className="flex flex-col gap-1.5 text-[13px] font-medium text-ink-2">
-              Password
-              <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-xl border hairline bg-page px-3.5 py-2.5 text-[15px] text-ink outline-none focus:border-accent" />
-            </label>
+        ) : mode.data ? (
+          <div className="card flex flex-col gap-4 p-6">
+            {mode.data.oidc && (
+              <a href="/api/auth/oidc/start" className="rounded-xl bg-accent px-4 py-2.5 text-center text-[15px] font-semibold text-white transition-opacity hover:opacity-90">
+                {mode.data.oidc.label}
+              </a>
+            )}
+            {mode.data.oidc && mode.data.local && (
+              <div className="flex items-center gap-3 text-[12px] text-muted">
+                <span className="h-px flex-1 bg-[var(--border)]" />
+                or use your password
+                <span className="h-px flex-1 bg-[var(--border)]" />
+              </div>
+            )}
+            {mode.data.local && (
+              <form onSubmit={submit} className="flex flex-col gap-4">
+                <label className="flex flex-col gap-1.5 text-[13px] font-medium text-ink-2">
+                  Username
+                  <input autoFocus={!mode.data.oidc} autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} className="rounded-xl border hairline bg-page px-3.5 py-2.5 text-[15px] text-ink outline-none focus:border-accent" />
+                </label>
+                <label className="flex flex-col gap-1.5 text-[13px] font-medium text-ink-2">
+                  Password
+                  <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-xl border hairline bg-page px-3.5 py-2.5 text-[15px] text-ink outline-none focus:border-accent" />
+                </label>
+                <button disabled={busy || !username} className={`mt-1 rounded-xl px-4 py-2.5 text-[15px] font-semibold transition-opacity disabled:opacity-50 ${mode.data.oidc ? 'border hairline bg-surface-2 text-ink' : 'bg-accent text-white'}`}>
+                  {busy ? 'Signing in…' : 'Sign in'}
+                </button>
+              </form>
+            )}
             {error && <p className="text-[13px] text-bad">{error}</p>}
-            <button disabled={busy || !username} className="mt-1 rounded-xl bg-accent px-4 py-2.5 text-[15px] font-semibold text-white transition-opacity disabled:opacity-50">
-              {busy ? 'Signing in…' : 'Sign in'}
-            </button>
-            <p className="text-center text-[12px] text-muted">Use your Audiobookshelf username and password. They go straight to your ABS server and aren't stored here.</p>
-          </form>
-        )}
+            {!mode.data.local && !mode.data.oidc && <p className="text-[13px] text-bad">No sign-in method is configured. Set up OIDC or turn LOCAL_LOGIN back on.</p>}
+            <p className="text-center text-[12px] text-muted">
+              {mode.data.oidc ? 'Use the same account you use for Audiobookshelf.' : "Use your Audiobookshelf username and password. They go straight to your ABS server and aren't stored here."}
+            </p>
+          </div>
+        ) : null}
       </div>
     </div>
   )

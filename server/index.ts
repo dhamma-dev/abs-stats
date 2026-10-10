@@ -5,8 +5,9 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import type { Me } from '../shared/types.ts'
 import { HttpError, login, logout, requireUser, type SessionUser } from './auth.ts'
-import { config } from './config.ts'
+import { config, oidcEnabled } from './config.ts'
 import { getCover } from './covers.ts'
+import { finishOidc, startOidc } from './oidc.ts'
 import { snapshotStatus, snapshotVersion, startSnapshotLoop } from './db.ts'
 import { familyStats, listUsers, userStats } from './stats/compute.ts'
 
@@ -36,8 +37,26 @@ const parseYear = (v: string | undefined) => (v && /^\d{4}$/.test(v) ? Number(v)
 app.get('/api/health', (c) => c.json({ ok: true, snapshot: snapshotStatus(), authMode: config.authMode }))
 
 app.get('/api/auth/mode', (c) =>
-  c.json({ mode: config.authMode, users: config.authMode === 'demo' ? listUsers().map((u) => u.username) : [] }),
+  c.json({
+    mode: config.authMode,
+    users: config.authMode === 'demo' ? listUsers().map((u) => u.username) : [],
+    local: config.authMode === 'demo' || config.localLogin,
+    oidc: config.authMode !== 'demo' && oidcEnabled() ? { label: config.oidc.buttonText } : null,
+  }),
 )
+
+// Browser redirects, so failures go back to the login page instead of returning JSON.
+const oidcRoute = (fn: typeof startOidc) => async (c: Parameters<typeof startOidc>[0]) => {
+  if (!oidcEnabled()) return c.redirect('/login?error=' + encodeURIComponent('SSO is not configured'))
+  try {
+    return await fn(c)
+  } catch (err) {
+    console.warn('[oidc]', (err as Error).message)
+    return c.redirect('/login?error=' + encodeURIComponent((err as Error).message))
+  }
+}
+app.get('/api/auth/oidc/start', oidcRoute(startOidc))
+app.get('/api/auth/oidc/callback', oidcRoute(finishOidc))
 
 app.post('/api/auth/login', async (c) => {
   const { username, password } = await c.req.json<{ username?: string; password?: string }>()
@@ -107,5 +126,9 @@ serve({ fetch: app.fetch, port: config.port }, (info) => {
   console.log(`ABS Stats listening on http://localhost:${info.port}`)
   console.log(`  database: ${config.absDbPath} (${s.ready ? 'snapshot ready' : 'NOT READY: ' + s.lastError})`)
   console.log(`  auth: ${config.authMode}${config.authMode === 'abs' ? ` via ${config.absUrl || '(ABS_URL missing!)'}` : ''}`)
+  if (config.authMode === 'abs') {
+    console.log(`  password login: ${config.localLogin ? 'on' : 'off'}`)
+    console.log(`  SSO: ${oidcEnabled() ? `${config.oidc.issuer} (redirect URI ${config.publicUrl}/api/auth/oidc/callback)` : config.oidc.issuer ? 'NOT ACTIVE - set PUBLIC_URL and OIDC_CLIENT_ID' : 'off'}`)
+  }
   console.log(`  timezone: ${config.timeZone}`)
 })

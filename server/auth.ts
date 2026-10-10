@@ -19,7 +19,7 @@ export interface SessionUser {
 }
 
 let secret: Uint8Array | null = null
-function getSecret() {
+export function getSecret() {
   if (secret) return secret
   if (config.sessionSecret) return (secret = new TextEncoder().encode(config.sessionSecret))
   // Generate once and keep it in the data dir so logins survive restarts.
@@ -29,7 +29,7 @@ function getSecret() {
   return (secret = new TextEncoder().encode(fs.readFileSync(file, 'utf8').trim()))
 }
 
-const isAdminType = (t: string) => t === 'root' || t === 'admin'
+export const isAdminType = (t: string) => t === 'root' || t === 'admin'
 
 /**
  * Verifies credentials against Audiobookshelf itself. We never see or store
@@ -64,7 +64,13 @@ function verifyDemo(username: string): SessionUser {
 }
 
 export async function login(c: Context, username: string, password: string) {
+  if (config.authMode !== 'demo' && !config.localLogin) throw new HttpError(403, 'Password sign-in is turned off')
   const user = config.authMode === 'demo' ? verifyDemo(username) : await verifyWithAbs(username, password)
+  return issueSession(c, user)
+}
+
+/** Sets the signed session cookie for a verified ABS user. */
+export async function issueSession(c: Context, user: SessionUser) {
   const token = await new SignJWT({ u: user.username, t: user.type })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.id)
@@ -76,10 +82,12 @@ export async function login(c: Context, username: string, password: string) {
     sameSite: 'Lax',
     path: '/',
     maxAge: MAX_AGE,
-    secure: c.req.url.startsWith('https:'),
+    secure: isHttps(c),
   })
   return user
 }
+
+export const isHttps = (c: Context) => (config.publicUrl || c.req.url).startsWith('https:')
 
 export function logout(c: Context) {
   deleteCookie(c, COOKIE, { path: '/' })
