@@ -1,0 +1,21 @@
+# Add this service next to your existing audiobookshelf service.
+# It reads ABS's database through a read-only mount and keeps its own
+# snapshot in ./shelf-stats-data, so ABS is never written to or locked.
+services:
+  shelf-stats:
+    image: ghcr.io/dhamma-dev/abs-stats:latest
+    container_name: shelf-stats
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      ABS_URL: http://audiobookshelf:80   # how this container reaches ABS (service name works on the same network)
+      ABS_API_KEY: ""                     # optional, for real cover art: ABS -> Settings -> API Keys
+      TZ: America/New_York                # use the same TZ as your ABS container
+      AUTH_MODE: abs
+      FAMILY_VISIBLE: "true"
+      SNAPSHOT_MINUTES: "10"
+    volumes:
+      # the SAME host folder you mount as /config in the audiobookshelf container
+      - /path/to/audiobookshelf/config:/abs-config:ro
+      - ./shelf-stats-data:/data

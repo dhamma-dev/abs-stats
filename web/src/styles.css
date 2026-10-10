@@ -1,0 +1,186 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+/* ---------------------------------------------------------------- tokens
+   Chart colors follow the validated reference palette (light + dark steps). */
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --surface-2: #f3f2ee;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.1);
+  --good: #006300;
+  --bad: #d03b3b;
+
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --s5: #e87ba4;
+  --s6: #008300;
+  --s7: #4a3aa7;
+  --s8: #e34948;
+
+  /* sequential blue, near-zero -> max */
+  --q0: #eceae4;
+  --q1: #cde2fb;
+  --q2: #9ec5f4;
+  --q3: #6da7ec;
+  --q4: #3987e5;
+  --q5: #256abf;
+  --q6: #184f95;
+  --q7: #0d366b;
+
+  --accent: #2a78d6;
+  --glow: rgba(42, 120, 214, 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme='light'])) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #232321;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.1);
+    --good: #0ca30c;
+    --bad: #e66767;
+
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s4: #c98500;
+    --s5: #d55181;
+    --s6: #008300;
+    --s7: #9085e9;
+    --s8: #e66767;
+
+    /* dark: near-zero recedes toward the surface, max is brightest */
+    --q0: #262624;
+    --q1: #0d366b;
+    --q2: #184f95;
+    --q3: #1c5cab;
+    --q4: #2a78d6;
+    --q5: #3987e5;
+    --q6: #6da7ec;
+    --q7: #9ec5f4;
+
+    --accent: #3987e5;
+    --glow: rgba(57, 135, 229, 0.18);
+  }
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --surface-2: #232321;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.1);
+  --good: #0ca30c;
+  --bad: #e66767;
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+  --s5: #d55181;
+  --s6: #008300;
+  --s7: #9085e9;
+  --s8: #e66767;
+  --q0: #262624;
+  --q1: #0d366b;
+  --q2: #184f95;
+  --q3: #1c5cab;
+  --q4: #2a78d6;
+  --q5: #3987e5;
+  --q6: #6da7ec;
+  --q7: #9ec5f4;
+  --accent: #3987e5;
+  --glow: rgba(57, 135, 229, 0.18);
+}
+
+@theme inline {
+  --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-grid: var(--grid);
+  --color-line: var(--border);
+  --color-accent: var(--accent);
+  --color-good: var(--good);
+  --color-bad: var(--bad);
+}
+
+html,
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+}
+
+.hairline {
+  border-color: var(--border);
+}
+
+/* subtle top glow behind the app header */
+.app-glow {
+  background:
+    radial-gradient(60rem 24rem at 15% -10%, var(--glow), transparent 70%),
+    radial-gradient(40rem 20rem at 95% -20%, rgba(217, 89, 38, 0.08), transparent 70%);
+}
+
+.scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+@media (forced-colors: active) {
+  .card {
+    border: 1px solid CanvasText;
+  }
+}
+
+/* Grid/flex children default to min-width:auto, which lets a chart's measured
+   SVG width hold its column open. Let them shrink so charts can re-measure. */
+.card,
+.grid > *,
+main > * {
+  min-width: 0;
+}
