@@ -13,7 +13,7 @@ A deep-dive stats dashboard and a Wrapped-style year in review for your [Audiobo
 
 ## How it works
 
-- **Read-only.** Every `SNAPSHOT_MINUTES`, the app copies `absdatabase.sqlite` into its own data folder using SQLite's online backup, and every query runs against that copy. ABS is never written to and never kept waiting.
+- **Read-only, and only when someone's looking.** The app copies `absdatabase.sqlite` into its own data folder using SQLite's online backup, and every query runs against that copy, so ABS is never written to or kept waiting. Copies happen on demand: when someone opens the app and the copy is more than `SNAPSHOT_MINUTES` old, it checks whether ABS's file has changed (an instant file check) and copies only if it has. When nobody is using the app, nothing happens at all.
 - **Login matches ABS accounts.** Password sign-in goes to your ABS server's `/login`; the app never stores passwords. If your ABS uses OIDC, the app can sign people in through the same provider instead (see below). Either way it keeps a signed session cookie that says who you are. Admins can switch between users; everyone else sees only themselves (plus the Family page, if `FAMILY_VISIBLE=true`).
 - **Covers** come from ABS's cover endpoint, using an optional API key. Without one, the app draws typographic covers.
 - **Speed** is measured, not taken from a setting: for each session it compares how far you moved through the book with how long you actually listened.
@@ -73,7 +73,7 @@ To use your real data on your laptop instead, copy `absdatabase.sqlite` off the 
 | `AUTH_MODE` | `abs` | `abs` or `demo` |
 | `FAMILY_VISIBLE` | `true` | Whether non-admins can see the Family page |
 | `TZ` | system | Timezone used to bucket listening by day and hour |
-| `SNAPSHOT_MINUTES` | `10` | How often to refresh the snapshot |
+| `SNAPSHOT_MINUTES` | `10` | Longest the data can be out of date while someone is using the app. `0` checks on every request |
 | `DATA_DIR` | `/data` (Docker) | Where the snapshot and session secret live |
 | `SESSION_SECRET` | auto-generated | Override the cookie signing secret |
 | `PUBLIC_URL` | — | URL people use to open the app (required for OIDC) |

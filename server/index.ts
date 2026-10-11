@@ -10,7 +10,7 @@ import { config, oidcEnabled } from './config.ts'
 import { getCover } from './covers.ts'
 import { finishOidc, startOidc } from './oidc.ts'
 import { clearLoginAttempts, clientIp, takeLoginAttempt } from './ratelimit.ts'
-import { snapshotStatus, snapshotVersion, startSnapshotLoop } from './db.ts'
+import { ensureFresh, initSnapshot, snapshotStatus, snapshotVersion } from './db.ts'
 import { familyStats, listUsers, userStats } from './stats/compute.ts'
 
 const app = new Hono<{ Variables: { user: SessionUser } }>()
@@ -86,6 +86,11 @@ app.post('/api/auth/logout', (c) => {
 // ---------------------------------------------------------------- signed in
 
 app.use('/api/*', requireUser)
+// Refresh the snapshot on demand (covers don't need fresh stats)
+app.use('/api/*', async (c, next) => {
+  if (!c.req.path.startsWith('/api/cover/')) await ensureFresh()
+  await next()
+})
 
 app.get('/api/me', (c) => {
   const u = c.get('user')
@@ -133,7 +138,7 @@ if (fs.existsSync(config.webDir)) {
   app.get('*', (c) => c.html(index))
 }
 
-await startSnapshotLoop()
+await initSnapshot()
 serve({ fetch: app.fetch, port: config.port }, (info) => {
   const s = snapshotStatus()
   console.log(`ABS Stats listening on http://localhost:${info.port}`)

@@ -4,14 +4,22 @@ import { DatabaseSync, backup } from 'node:sqlite'
 import { config } from './config.ts'
 
 /**
- * We never query Audiobookshelf's live database directly. Every few minutes we
- * copy it (SQLite online backup, opened read-only) into our own data dir and run
- * all the heavy analytics against that snapshot, so ABS is never slowed or locked.
+ * We never query Audiobookshelf's live database directly. We copy it (SQLite online
+ * backup, opened read-only) into our own data dir and run all the heavy analytics
+ * against that snapshot, so ABS is never slowed or locked.
+ *
+ * Copies happen on demand: when someone uses the app and the snapshot is older than
+ * SNAPSHOT_MINUTES, we check whether ABS's database file has changed (a cheap stat)
+ * and only copy it if it has. Nobody looking means no copies at all.
  */
 
 let current: DatabaseSync | null = null
 let version = 0
 let lastRefresh: Date | null = null
+/** When we last confirmed the snapshot matches the ABS file */
+let lastChecked = 0
+/** ABS file size + mtime at the moment of the last copy */
+let sourceStamp = ''
 let lastError: string | null = null
 let refreshing: Promise<void> | null = null
 
@@ -22,6 +30,7 @@ async function doRefresh() {
   if (!fs.existsSync(config.absDbPath)) {
     throw new Error(`ABS database not found at ${config.absDbPath}`)
   }
+  const stamp = stampOf(config.absDbPath)
   const tmp = snapshotPath() + '.tmp'
   fs.rmSync(tmp, { force: true })
   const src = new DatabaseSync(config.absDbPath, { readOnly: true })
@@ -35,8 +44,27 @@ async function doRefresh() {
   current = new DatabaseSync(snapshotPath(), { readOnly: true })
   version++
   lastRefresh = new Date()
+  lastChecked = Date.now()
+  sourceStamp = stamp
+  fs.writeFileSync(stampPath(), stamp)
   lastError = null
+  console.log(`[snapshot] copied ABS database (v${version})`)
 }
+
+/** Size + mtime of the ABS database (and its WAL file, if it runs in WAL mode). */
+function stampOf(file: string) {
+  const st = fs.statSync(file)
+  let stamp = `${st.size}:${st.mtimeMs}`
+  try {
+    const wal = fs.statSync(file + '-wal')
+    stamp += `|${wal.size}:${wal.mtimeMs}`
+  } catch {
+    // no WAL file - the usual case for ABS
+  }
+  return stamp
+}
+
+const stampPath = () => snapshotPath() + '.stamp'
 
 export async function refreshSnapshot() {
   if (!refreshing) {
@@ -55,10 +83,38 @@ export async function refreshSnapshot() {
   return refreshing
 }
 
-export function startSnapshotLoop() {
-  const ms = Math.max(1, config.snapshotMinutes) * 60_000
-  setInterval(() => void refreshSnapshot(), ms).unref()
-  return refreshSnapshot()
+/**
+ * Makes sure the snapshot is no older than SNAPSHOT_MINUTES, copying only if ABS's
+ * database actually changed. Requests wait for it, so what people see is current.
+ */
+export async function ensureFresh() {
+  if (current && Date.now() - lastChecked < Math.max(0, config.snapshotMinutes) * 60_000) return
+  try {
+    if (current && sourceStamp && stampOf(config.absDbPath) === sourceStamp) {
+      lastChecked = Date.now()
+      return
+    }
+  } catch {
+    // can't stat the source right now - fall through and let refresh report it
+  }
+  await refreshSnapshot()
+}
+
+/** On startup reuse the snapshot from last run if there is one, so we start instantly. */
+export async function initSnapshot() {
+  if (fs.existsSync(snapshotPath())) {
+    current = new DatabaseSync(snapshotPath(), { readOnly: true })
+    version++
+    // lastChecked stays 0, so the first request checks ABS for changes - and only
+    // copies if the file differs from what this snapshot was taken from.
+    try {
+      sourceStamp = fs.readFileSync(stampPath(), 'utf8').trim()
+    } catch {
+      sourceStamp = ''
+    }
+    return
+  }
+  await refreshSnapshot()
 }
 
 export function db(): DatabaseSync {
@@ -67,7 +123,7 @@ export function db(): DatabaseSync {
 }
 
 export const snapshotVersion = () => version
-export const snapshotStatus = () => ({ version, lastRefresh, lastError, ready: !!current })
+export const snapshotStatus = () => ({ version, lastRefresh, lastChecked: lastChecked ? new Date(lastChecked) : null, lastError, ready: !!current })
 
 export function all<T = Record<string, unknown>>(sql: string, ...params: (string | number | null)[]): T[] {
   return db().prepare(sql).all(...params) as T[]
