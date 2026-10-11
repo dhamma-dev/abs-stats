@@ -3,20 +3,24 @@ import path from 'node:path'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
+import { secureHeaders } from 'hono/secure-headers'
 import type { Me } from '../shared/types.ts'
 import { HttpError, login, logout, requireUser, type SessionUser } from './auth.ts'
 import { config, oidcEnabled } from './config.ts'
 import { getCover } from './covers.ts'
 import { finishOidc, startOidc } from './oidc.ts'
+import { clearLoginAttempts, clientIp, takeLoginAttempt } from './ratelimit.ts'
 import { snapshotStatus, snapshotVersion, startSnapshotLoop } from './db.ts'
 import { familyStats, listUsers, userStats } from './stats/compute.ts'
 
 const app = new Hono<{ Variables: { user: SessionUser } }>()
 
+app.use('*', secureHeaders({ strictTransportSecurity: false }))
+
 app.onError((err, c) => {
   if (err instanceof HttpError) return c.json({ error: err.message }, err.status)
   console.error(err)
-  return c.json({ error: err.message || 'Something went wrong' }, 500)
+  return c.json({ error: 'Something went wrong' }, 500)
 })
 
 // ---- small result cache, keyed on the snapshot version so it clears itself on refresh
@@ -34,7 +38,11 @@ const parseYear = (v: string | undefined) => (v && /^\d{4}$/.test(v) ? Number(v)
 
 // ---------------------------------------------------------------- public
 
-app.get('/api/health', (c) => c.json({ ok: true, snapshot: snapshotStatus(), authMode: config.authMode }))
+// Public, so it leaves out lastError (which can contain filesystem paths).
+app.get('/api/health', (c) => {
+  const { ready, lastRefresh } = snapshotStatus()
+  return c.json({ ok: true, snapshot: { ready, lastRefresh }, authMode: config.authMode })
+})
 
 app.get('/api/auth/mode', (c) =>
   c.json({
@@ -59,9 +67,14 @@ app.get('/api/auth/oidc/start', oidcRoute(startOidc))
 app.get('/api/auth/oidc/callback', oidcRoute(finishOidc))
 
 app.post('/api/auth/login', async (c) => {
+  // A cross-site form can't send application/json, so this blocks login CSRF.
+  if (!c.req.header('content-type')?.startsWith('application/json')) throw new HttpError(400, 'Expected JSON')
   const { username, password } = await c.req.json<{ username?: string; password?: string }>()
   if (!username) throw new HttpError(400, 'Username is required')
+  const ip = clientIp(c)
+  takeLoginAttempt(ip)
   const user = await login(c, username.trim(), password ?? '')
+  clearLoginAttempts(ip)
   return c.json({ ok: true, user })
 })
 
