@@ -16,6 +16,8 @@ export const config = {
   webDir: path.resolve(env.WEB_DIR ?? './dist/web'),
   /** Public URL people use to reach this app, e.g. https://stats.example.com (needed for OIDC) */
   publicUrl: (env.PUBLIC_URL ?? '').replace(/\/+$/, ''),
+  /** Behind a reverse proxy: take the client address from X-Forwarded-For (for the sign-in limit) */
+  trustProxy: env.TRUST_PROXY === 'true',
   /** Show the username/password form (turn off if ABS only allows OIDC) */
   localLogin: (env.LOCAL_LOGIN ?? 'true') !== 'false',
   oidc: {

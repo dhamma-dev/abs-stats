@@ -9,6 +9,7 @@ import { HttpError, login, logout, requireUser, type SessionUser } from './auth.
 import { config, oidcEnabled } from './config.ts'
 import { getCover } from './covers.ts'
 import { finishOidc, startOidc } from './oidc.ts'
+import { clearLoginAttempts, clientIp, takeLoginAttempt } from './ratelimit.ts'
 import { snapshotStatus, snapshotVersion, startSnapshotLoop } from './db.ts'
 import { familyStats, listUsers, userStats } from './stats/compute.ts'
 
@@ -70,7 +71,10 @@ app.post('/api/auth/login', async (c) => {
   if (!c.req.header('content-type')?.startsWith('application/json')) throw new HttpError(400, 'Expected JSON')
   const { username, password } = await c.req.json<{ username?: string; password?: string }>()
   if (!username) throw new HttpError(400, 'Username is required')
+  const ip = clientIp(c)
+  takeLoginAttempt(ip)
   const user = await login(c, username.trim(), password ?? '')
+  clearLoginAttempts(ip)
   return c.json({ ok: true, user })
 })
 

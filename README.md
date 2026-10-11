@@ -81,6 +81,7 @@ To use your real data on your laptop instead, copy `absdatabase.sqlite` off the 
 | `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | — | Client credentials (reusing ABS's client is easiest) |
 | `OIDC_SCOPES` | `openid profile email` | |
 | `OIDC_BUTTON_TEXT` | `Sign in with SSO` | |
+| `TRUST_PROXY` | `false` | Set `true` behind a reverse proxy, so the sign-in limit (10 failed attempts per 15 minutes) applies per visitor instead of to the proxy |
 | `OIDC_MATCH_EMAIL` | `false` | Fall back to a provider-verified email when the provider ID isn't linked yet (see the caution above) |
 | `LOCAL_LOGIN` | `true` | Show the ABS username/password form |
 | `PORT` | `8787` | |

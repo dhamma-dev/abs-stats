@@ -15,6 +15,7 @@ services:
       AUTH_MODE: abs
       FAMILY_VISIBLE: "true"
       SNAPSHOT_MINUTES: "10"
+      TRUST_PROXY: "false"                # "true" if a reverse proxy sits in front (sets X-Forwarded-For)
       # --- Single sign-on, if your ABS uses OIDC (see README)
       PUBLIC_URL: https://stats.example.com
       OIDC_ISSUER: https://auth.example.com/application/o/audiobookshelf/
