@@ -6,9 +6,12 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { SignJWT, jwtVerify } from 'jose'
 import type { UserType } from '../shared/types.ts'
 import { config } from './config.ts'
+import { get } from './db.ts'
 import { catalog } from './stats/load.ts'
 
 const COOKIE = 'abs_stats_session'
+/** Distinguishes session tokens from the OIDC flow tokens signed with the same secret. */
+const SESSION_TYP = 'abs-stats-session'
 const MAX_AGE = 60 * 60 * 24 * 30 // 30 days
 
 export interface SessionUser {
@@ -72,7 +75,7 @@ export async function login(c: Context, username: string, password: string) {
 /** Sets the signed session cookie for a verified ABS user. */
 export async function issueSession(c: Context, user: SessionUser) {
   const token = await new SignJWT({ u: user.username, t: user.type })
-    .setProtectedHeader({ alg: 'HS256' })
+    .setProtectedHeader({ alg: 'HS256', typ: SESSION_TYP })
     .setSubject(user.id)
     .setIssuedAt()
     .setExpirationTime(`${MAX_AGE}s`)
@@ -87,7 +90,10 @@ export async function issueSession(c: Context, user: SessionUser) {
   return user
 }
 
-export const isHttps = (c: Context) => (config.publicUrl || c.req.url).startsWith('https:')
+// X-Forwarded-Proto covers TLS-terminating proxies when PUBLIC_URL isn't set. Spoofing it
+// can only make the sender's own cookie stricter.
+export const isHttps = (c: Context) =>
+  (config.publicUrl || c.req.url).startsWith('https:') || c.req.header('x-forwarded-proto') === 'https'
 
 export function logout(c: Context) {
   deleteCookie(c, COOKIE, { path: '/' })
@@ -96,14 +102,26 @@ export function logout(c: Context) {
 export const requireUser: MiddlewareHandler<{ Variables: { user: SessionUser } }> = async (c, next) => {
   const token = getCookie(c, COOKIE)
   if (!token) return c.json({ error: 'Not signed in' }, 401)
+  let sub: string
   try {
-    const { payload } = await jwtVerify(token, getSecret())
-    const type = String(payload.t) as UserType
-    c.set('user', { id: String(payload.sub), username: String(payload.u), type, isAdmin: isAdminType(type) })
+    const { payload } = await jwtVerify(token, getSecret(), { typ: SESSION_TYP })
+    if (!payload.sub) throw new Error('no subject')
+    sub = payload.sub
   } catch {
     logout(c)
     return c.json({ error: 'Session expired' }, 401)
   }
+  // Re-read the account from the snapshot on every request, so deleting, disabling or
+  // demoting someone in ABS takes effect at the next snapshot instead of after 30 days.
+  const row = get<{ username: string; type: UserType; isActive: number | null }>(
+    'SELECT username, type, isActive FROM users WHERE id = ?',
+    sub,
+  )
+  if (!row || row.isActive === 0) {
+    logout(c)
+    return c.json({ error: 'This account is no longer active' }, 401)
+  }
+  c.set('user', { id: sub, username: row.username, type: row.type, isAdmin: isAdminType(row.type) })
   await next()
 }
 

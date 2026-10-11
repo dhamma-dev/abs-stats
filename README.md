@@ -32,7 +32,7 @@ Images are built by GitHub Actions for `linux/amd64` and `linux/arm64` and publi
 
 If Audiobookshelf signs people in through Authentik, Authelia, Keycloak, Pocket ID or another OIDC provider, Shelf Stats can use the same provider.
 
-When someone logs into ABS with OIDC, ABS saves their provider user ID (`sub`) on their account. Shelf Stats runs its own sign-in with the provider, then finds the ABS account with that same ID. If no account has that ID yet, it falls back to a matching, verified email (turn that off with `OIDC_MATCH_EMAIL=false`). Admin rights come from the ABS account, not the provider.
+When someone logs into ABS with OIDC, ABS saves their provider user ID (`sub`) on their account. Shelf Stats runs its own sign-in with the provider, then finds the ABS account with that same ID. If no account has that ID yet, sign-in fails. You can set `OIDC_MATCH_EMAIL=true` to fall back to an unlinked ABS account with the same email, but only if your provider never lets people set an email they don't own: whoever controls that email at the provider gets that ABS account, including an admin one. Admin rights come from the ABS account, not the provider.
 
 1. **Register Shelf Stats with your provider.** The redirect URI is `PUBLIC_URL/api/auth/oidc/callback`, for example `https://stats.example.com/api/auth/oidc/callback`. The easiest option is to add that URI to the **existing Audiobookshelf client** and reuse its client ID and secret. That guarantees the provider sends the same user ID ABS saw. If you create a separate client instead, check that your provider issues the same `sub` across clients. (Authentik: same "Subject mode" on both providers. Keycloak and Authelia do this by default unless pairwise subjects are on.)
 2. **Set** `PUBLIC_URL`, `OIDC_ISSUER`, `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET`. Optionally set `OIDC_BUTTON_TEXT`.
@@ -81,7 +81,7 @@ To use your real data on your laptop instead, copy `absdatabase.sqlite` off the 
 | `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | — | Client credentials (reusing ABS's client is easiest) |
 | `OIDC_SCOPES` | `openid profile email` | |
 | `OIDC_BUTTON_TEXT` | `Sign in with SSO` | |
-| `OIDC_MATCH_EMAIL` | `true` | Fall back to verified email when the provider ID isn't linked yet |
+| `OIDC_MATCH_EMAIL` | `false` | Fall back to a provider-verified email when the provider ID isn't linked yet (see the caution above) |
 | `LOCAL_LOGIN` | `true` | Show the ABS username/password form |
 | `PORT` | `8787` | |
 

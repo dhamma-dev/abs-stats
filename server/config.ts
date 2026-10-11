@@ -24,8 +24,8 @@ export const config = {
     clientSecret: env.OIDC_CLIENT_SECRET ?? '',
     scopes: env.OIDC_SCOPES ?? 'openid profile email',
     buttonText: env.OIDC_BUTTON_TEXT ?? 'Sign in with SSO',
-    /** Fall back to matching verified email when the provider ID isn't linked yet */
-    matchEmail: (env.OIDC_MATCH_EMAIL ?? 'true') !== 'false',
+    /** Fall back to matching verified email when the provider ID isn't linked yet (opt-in) */
+    matchEmail: env.OIDC_MATCH_EMAIL === 'true',
   },
 }
 

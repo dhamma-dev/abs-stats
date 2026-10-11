@@ -124,9 +124,10 @@ function findAbsUser(info: Record<string, unknown>): SessionUser | null {
   const sub = String(info.sub)
   let row = rows.find((r) => parseJson<Record<string, unknown>>(r.extraData, {}).authOpenIDSub === sub)
 
-  // Same rule ABS uses: only trust email when the provider hasn't said it's unverified,
-  // and only for accounts that aren't already linked to a different provider id.
-  if (!row && config.oidc.matchEmail && typeof info.email === 'string' && info.email_verified !== false) {
+  // Opt-in only, and only when the provider explicitly says the email is verified: otherwise
+  // anyone who can set an email at the provider could take over an unlinked ABS account
+  // (often the root admin). Never matches accounts already linked to another provider id.
+  if (!row && config.oidc.matchEmail && typeof info.email === 'string' && info.email_verified === true) {
     const email = info.email.toLowerCase()
     row = rows.find((r) => r.email?.toLowerCase() === email && !parseJson<Record<string, unknown>>(r.extraData, {}).authOpenIDSub)
   }
