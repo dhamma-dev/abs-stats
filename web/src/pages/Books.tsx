@@ -22,8 +22,8 @@ export function Books() {
 
   return (
     <div className="grid gap-4">
-      <Card title="Your year in books" subtitle="Each lane is one of your most-played books">
-        {s.timeline.length ? <div className="scroll-x"><div className="min-w-[560px]"><BookTimeline stats={s} /></div></div> : <Empty>No books yet.</Empty>}
+      <Card title={s.period.year ? 'Your year in books' : 'Your books over time'} subtitle="Every book you played, from the day you started it to the day you finished">
+        {s.timeline.length ? <BookTimeline stats={s} /> : <Empty>No books yet.</Empty>}
       </Card>
 
       <Card

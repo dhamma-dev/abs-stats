@@ -112,11 +112,28 @@ export interface UserStats {
   lengths: { label: string; books: number }[]
   finished: FinishedBook[]
   abandoned: { book: Book; lastDate: string; progress: number }[]
-  timeline: { book: BookLite; finished: string | null; days: [string, number][] }[]
+  /** Every book played in the period, ordered by when you first played it in the period */
+  timeline: TimelineBook[]
   milestones: { date: string; label: string }[]
   firstBook: BookLite | null
   lastBook: BookLite | null
   equivalents: { nonstopDays: number; pages: number; roadTrips: number }
+}
+
+export interface TimelineBook {
+  book: BookLite
+  /** total listening in the period, seconds */
+  sec: number
+  /** finish date, if it was finished within the period */
+  finished: string | null
+  /** never finished and not played for 45+ days */
+  stalled: boolean
+  /** first played before the period started */
+  startedBefore: boolean
+  /** still being played after the period ended */
+  continuesAfter: boolean
+  /** [YYYY-MM-DD, seconds] for each day it was played */
+  days: [string, number][]
 }
 
 export interface FamilyMember {

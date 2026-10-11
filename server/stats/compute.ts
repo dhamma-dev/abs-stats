@@ -7,6 +7,7 @@ import type {
   NamedStat,
   Period,
   Streak,
+  TimelineBook,
   UserStats,
   UserSummary,
 } from '../../shared/types.ts'
@@ -362,19 +363,31 @@ export function userStats(userId: string, year: number | null): UserStats {
     lengths[LENGTH_BUCKETS.findIndex(([, max]) => dur < max)].books++
   }
 
-  // ---- timeline of the most-listened books, day by day
-  const timeline = topBooks.slice(0, 14).map((tb) => {
-    const days = new Map<string, number>()
-    for (const s of sessionsPerBook.get(tb.book.id) ?? [])
-      for (const { parts, sec } of spreadByHour(s.start, s.listenSec))
-        if (inPeriod(parts.date, period)) bump(days, parts.date, sec)
-    const fin = finished.find((f) => f.book.id === tb.book.id)
-    return {
-      book: lite(tb.book),
-      finished: fin?.finishedAt ?? null,
-      days: [...days].sort((a, b) => a[0].localeCompare(b[0])).map(([d, s]) => [d, Math.round(s)] as [string, number]),
-    }
-  })
+  // ---- timeline: every book played in the period, day by day, in the order you started them
+  const timeline: TimelineBook[] = [...sessionsPerBook]
+    .map(([id, ss]) => {
+      const days = new Map<string, number>()
+      for (const s of ss)
+        for (const { parts, sec } of spreadByHour(s.start, s.listenSec))
+          if (inPeriod(parts.date, period)) bump(days, parts.date, sec)
+      const fin = finished.find((f) => f.book.id === id)
+      const sorted = [...days].sort((a, b) => a[0].localeCompare(b[0]))
+      const lastDay = sorted.length ? sorted[sorted.length - 1][0] : period.start
+      const pr = progressOf.get(id)
+      return {
+        book: lite(book(id)),
+        sec: Math.round(k.bookSec.get(id) ?? 0),
+        finished: fin?.finishedAt ?? null,
+        stalled: !fin && !pr?.isFinished && local(lastListen.get(id)!).date < staleBefore,
+        startedBefore: local(firstListen.get(id)!).date < period.start,
+        continuesAfter: !fin && local(lastListen.get(id)!).date > period.end,
+        days: sorted.map(([d, sec]) => [d, Math.round(sec)] as [string, number]),
+        _first: sorted[0]?.[0] ?? lastDay,
+      }
+    })
+    .filter((t) => t.days.length)
+    .sort((a, b) => a._first.localeCompare(b._first) || b.sec - a.sec)
+    .map(({ _first, ...t }) => t)
 
   // ---- milestones
   const milestones: { date: string; label: string }[] = []
